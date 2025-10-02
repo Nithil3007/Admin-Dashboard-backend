@@ -29,11 +29,11 @@ COPY . .
 RUN mkdir -p migrations
 
 # Expose port 8000
-EXPOSE 8000
+EXPOSE 8080
 
 # Health check using curl instead of requests library
 #HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 #    CMD curl -f http://localhost:8000/ || exit 1
     
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
