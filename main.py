@@ -13,8 +13,8 @@ app = FastAPI()
 # CORS Middleware
 origins = [
     "http://localhost:3000",
-    "http://localhost:8000",
-    'http://localhost:8000/admin/users/stats'
+    "http://localhost:8080",
+    'http://localhost:8080/admin/users/stats'
 ]
 
 app.add_middleware(
@@ -152,4 +152,4 @@ async def upgrade_user_tier(user_id: str, tier: TierUpdate, conn: psycopg2.exten
 #         conn.rollback()
 #         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 if __name__ == '__main__':
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, log_level="info")
