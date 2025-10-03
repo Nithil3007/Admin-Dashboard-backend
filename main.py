@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import psycopg2
@@ -10,14 +9,13 @@ import uvicorn
 
 app = FastAPI()
 
-# CORS Middleware
+# CORS Middleware - Allow frontend origins
 origins = [
     "http://localhost:3000",
-    "http://localhost:8080",
-    'http://localhost:8080/admin/users/stats',
-    'https://main.d2yed3nptgomb1.amplifyapp.com'
+    "http://localhost:8000",
+    "https://main.d2yed3nptgomb1.amplifyapp.com",
+    "https://*.amplifyapp.com",  # Allow all Amplify branches
 ]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -25,9 +23,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Database connection settings - use environment variable or default
-DATABASE_URL = "postgresql://postgres:password@localhost/admin_portal"
+# Database connection settings - use environment variable or default to Aurora
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:password@mediscribe-aurora-cluster.cluster-czocg06qii0u.us-east-2.rds.amazonaws.com:5432/mednotescribe"
+)
 
 # Dependency to get a DB connection
 def get_db_conn():
@@ -59,9 +59,9 @@ class TierUpdate(BaseModel):
     tier_name: str
 
 # Health check endpoint
-@app.get("/health")
-def health():
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"Status": "Healthy"})
+@app.get("/")
+async def health_check():
+    return {"status": "healthy", "service": "admin-portal-backend"}
 
 # Admin API Endpoints
 @app.get("/admin/users/stats", response_model=List[UserStats])
@@ -103,32 +103,38 @@ async def get_user_stats(conn: psycopg2.extensions.connection = Depends(get_db_c
 async def upgrade_user_tier(user_id: str, tier: TierUpdate, conn: psycopg2.extensions.connection = Depends(get_db_conn)):
     try:
         with conn.cursor() as cur:
+            # Verify user exists
+            cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            
             # Get the new tier_id
-            cur.execute("SELECT id FROM tiers WHERE name = %s", (tier.tier_name,))
+            cur.execute("SELECT id FROM tiers WHERE name = %s AND status = 'active'", (tier.tier_name,))
             new_tier_id_row = cur.fetchone()
             if not new_tier_id_row:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tier not found")
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tier not found or inactive")
             new_tier_id = new_tier_id_row[0]
 
-            # Use a single, atomic "upsert" operation.
-            # This will INSERT a new record if the user_id does not exist, 
-            # or UPDATE the existing record if it does.
-            cur.execute("""INSERT INTO user_tiers (user_id, tier_id, is_active, assigned_by)
-                        VALUES (%s, %s, true, 'admin')
-                        ON CONFLICT (user_id)
-                        DO UPDATE SET tier_id = EXCLUDED.tier_id, 
-                                      is_active = true, 
-                                      updated_at = NOW(),
-                                      expires_at = NULL;
-                     """,
-                        (user_id, new_tier_id))
+            # Deactivate any existing active tier for this user
+            cur.execute("""UPDATE user_tiers 
+                          SET is_active = false, 
+                              updated_at = NOW() 
+                          WHERE user_id = %s AND is_active = true""",
+                       (user_id,))
+            
+            # Insert new active tier assignment
+            cur.execute("""INSERT INTO user_tiers (user_id, tier_id, is_active, assigned_by, assigned_at)
+                          VALUES (%s, %s, true, 'admin', NOW())""",
+                       (user_id, new_tier_id))
 
         conn.commit()
-        return {"status": "success", "message": f"User {user_id}'s tier set to {tier.tier_name}"}
+        return {"status": "success", "message": f"User {user_id}'s tier upgraded to {tier.tier_name}"}
+    except HTTPException:
+        conn.rollback()
+        raise
     except psycopg2.Error as e:
         conn.rollback()
-        # A more specific error might be useful here depending on the expected failures
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database error: {str(e)}")
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -153,4 +159,4 @@ async def upgrade_user_tier(user_id: str, tier: TierUpdate, conn: psycopg2.exten
 #         conn.rollback()
 #         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 if __name__ == '__main__':
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
