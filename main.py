@@ -24,16 +24,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # Database connection settings - use environment variable or default to Aurora
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:password@mediscribe-aurora-cluster.cluster-czocg06qii0u.us-east-2.rds.amazonaws.com:5432/mednotescribe"
-)
+# DATABASE_URL = os.getenv(
+#    "DATABASE_URL",
+#    "postgresql://postgres:password@mediscribe-aurora-cluster.cluster-czocg06qii0u.us-east-2.rds.amazonaws.com:5432/mednotescribe"
+#)
+
+db_params = {
+    "host": "your_database_host", # mediscribe-aurora-cluster.cluster-czocg06qii0u.us-east-2.rds.amazonaws.com
+    "database": "your_database_name", # mednotescribe
+    "user": "user",
+    "password": "password",
+    "port": "your_database_port" # 5432
+}
 
 # Dependency to get a DB connection
 def get_db_conn():
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(**db_params)
         yield conn
     finally:
         if conn:
