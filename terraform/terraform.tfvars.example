@@ -1,0 +1,44 @@
+# AWS Configuration
+aws_region  = "us-east-2"
+environment = "prod"
+app_name    = "admin-dashboard-backend"
+
+# GitHub Configuration
+github_repository_url = "https://github.com/your-username/admin-dashboard-backend"
+github_branch         = "main"
+
+# If you have an existing GitHub connection, set this to true and provide the name
+use_existing_github_connection = false
+# github_connection_name = "my-existing-github-connection"
+
+# Build and Start Commands (defaults are usually fine)
+build_command = "pip install -r requirements.txt"
+start_command = "uvicorn main:app --host 0.0.0.0 --port 8080"
+
+# App Runner Configuration
+cpu                      = "1024"  # 1 vCPU
+memory                   = "2048"  # 2 GB
+min_instances            = 1
+max_instances            = 5
+max_concurrency          = 100
+auto_deployments_enabled = true
+
+# Database Configuration
+db_host     = "mediscribe-aurora-cluster.cluster-czocg06qii0u.us-east-2.rds.amazonaws.com"
+db_name     = "mednotescribe"
+db_user     = "postgres"
+db_password = "your-secure-password-here"
+db_port     = "5432"
+
+# Secrets Manager (Recommended for production)
+enable_secrets_manager = false
+# db_password_secret_arn = "arn:aws:secretsmanager:us-east-2:123456789012:secret:db-password-abc123"
+
+# VPC Configuration (Enable if RDS is in private subnet)
+enable_vpc_connector = false
+# private_subnet_ids   = ["subnet-12345678", "subnet-87654321"]
+# security_group_ids   = ["sg-12345678"]
+
+# Custom Domain (Optional)
+custom_domain = ""
+# custom_domain = "api.yourdomain.com"
